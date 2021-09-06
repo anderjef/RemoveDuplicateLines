@@ -1,11 +1,8 @@
-//This program was developed starting July 14, 2020, to parse some number of (ASCII) files for duplicate lines and create numbered output files with the
-//duplicate lines removed. Program developed for a Windows system.
+//Jeffrey Andersen
 
 
 //future considerations: optimize (parallel handling of files), be able to change the output file type, allow for specifing which duplicate line to keep
-//(as opposed to the current always keeping the first), review whether confirming each mapped line matches what indexed to the location before is truly
-//necessary (I have assumed it was based on long ago coming across two values appearing to map to the same place (actually I believe for the
-//original/lost version of this program))
+//(as opposed to the current always keeping the first)
 
 
 #include <algorithm> //count and max
@@ -45,24 +42,24 @@ void printHelp() {
 	cout << "\t-i\ttreats the next argument as if it were a file name (rather than as any option flag)\n";
 	cout << "\t-n\tmakes the line delimiter in subsequent files the newline character (which is the default behavior)\n";
 	cout << "\t-r\tchanges the line delimiter in subsequent files to carriage return (instead of the default newline character)\n";
-	cout << "\t-v\ttoggles whether to additionally print (to standard output) the duplicate lines found for subsequent each file and how many of each were removed (verbose mode is off by default)\n"; //future consideration: also print the line number (in the input file) for each duplicate line in verbose mode
+	cout << "\t-v\ttoggles whether to additionally print (to standard output) the duplicate lines found for subsequent files and how many of each were removed (verbose mode is off by default)\n"; //future consideration: also print the line number (in the input file) for each duplicate line in verbose mode
 }
 
 
 int handleFile(const string& inputFileName, const unsigned int fileNum, const char delimiter = '\n', const bool isVerboseModeOn = false) { //returns zero on success and some other integer on failure
-	ifstream fileIN(inputFileName, ios_base::in | ios_base::binary, _SH_DENYWR);
-	if (!fileIN.is_open()) { cerr << "Fatal Error: could not open " << inputFileName << ".\n"; printHelp(); return 1; }
+	ifstream fileIn(inputFileName, ios_base::in | ios_base::binary, _SH_DENYWR);
+	if (!fileIn.is_open()) { cerr << "Fatal Error: could not open " << inputFileName << ".\n"; printHelp(); return 1; }
 
 	const string intermediaryOutputFileString = (fileNum > 0 ? " (" + to_string(fileNum) + ')' : ""); //does not discriminate based on file extension
 	const string fileExtension = inputFileName.substr(inputFileName.find_last_of(".")); //use same file extension as the corresponding input file
-	ofstream fileOUT("output" + intermediaryOutputFileString + fileExtension, ios_base::out, _SH_DENYWR);
-	if (!fileOUT.is_open()) { cerr << "Fatal Error: could not open \"output" << intermediaryOutputFileString << fileExtension << "\" for writing.\n"; fileIN.close(); return 1; }
+	ofstream fileOut("output" + intermediaryOutputFileString + fileExtension, ios_base::out, _SH_DENYWR);
+	if (!fileOut.is_open()) { cerr << "Fatal Error: could not open \"output" << intermediaryOutputFileString << fileExtension << "\" for writing.\n"; fileIn.close(); return 1; }
 
-	unordered_map<string, pair<vector<string>, unsigned int>> duplicateLinesMap; //maps a line of the file to all different lines sharing the same hash and how many lines have hashed to that location
+	unordered_map<string, pair<vector<string>, unsigned int>> duplicateLinesMap; //maps a line of the file to all different lines sharing the same hash and how many lines have hashed to that location //future consideration: review whether the vector of strings being mapped to is really necessary (that is, confirming each mapped line matches what indexed to the location before is truly necessary) as I have assumed so based on long ago coming across two values appearing to map to the same place (actually I believe for the original/lost version of this program)
 	unsigned int numDuplicatesLines = 0;
 	unsigned int modeCount = 1;
 	string line;
-	for (getline(fileIN, line, delimiter); !fileIN.eof(); getline(fileIN, line, delimiter)) {
+	for (getline(fileIn, line, delimiter); !fileIn.eof(); getline(fileIn, line, delimiter)) {
 		if (duplicateLinesMap.find(line) != duplicateLinesMap.end()) { //if hashmap has an entry at the index
 			bool isADuplicateLine = false; //to be corrected as necessary
 			for (size_t i = 0; i < duplicateLinesMap.find(line)->second.first.size(); i++) {
@@ -78,17 +75,17 @@ int handleFile(const string& inputFileName, const unsigned int fileNum, const ch
 				cerr << "Warning: " << duplicateLinesMap.find(line)->second.first.at(0) << " and " << line << " were found to map to the same value.\n";
 				duplicateLinesMap[line] = make_pair(vector<string>(), 1);
 				duplicateLinesMap.find(line)->second.first.push_back(line);
-				fileOUT << line;
+				fileOut << line;
 			}
 		}
 		else { //line was not found in the hashmap
 			duplicateLinesMap[line] = make_pair(vector<string>(), 1);
 			duplicateLinesMap.find(line)->second.first.push_back(line);
-			fileOUT << line;
+			fileOut << line;
 		}
 	}
-	fileIN.close();
-	fileOUT.close();
+	fileIn.close();
+	fileOut.close();
 	cout << "Successfully removed " << numDuplicatesLines << " duplicate lines in " << inputFileName << " and wrote the result to \"output" << intermediaryOutputFileString << fileExtension << "\" (in the working directory).\a\n";
 	if (isVerboseModeOn) {
 		for (auto i = duplicateLinesMap.begin(); i != duplicateLinesMap.end(); i++) {
@@ -122,63 +119,36 @@ int handleFile(const string& inputFileName, const unsigned int fileNum, const ch
 
 
 void handleArgument(const string& argument, const unsigned int fileNum, bool& haveShownHelp, bool& doIgnoreNextFlag, bool& isVerboseModeOn, char& delimiter) {
-	if (argument.size() == 2 && argument[0] == '-') {
+	if (doIgnoreNextFlag) {
+		doIgnoreNextFlag = false;
+		handleFile(argument, fileNum, delimiter, isVerboseModeOn);
+	}
+	else if (argument.length() == 2 && argument[0] == '-') {
 		switch (argument[1]) {
 		case 'h':
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			if (!haveShownHelp) {
 				haveShownHelp = true;
 				printHelp();
 			}
 			break;
 		case 'i':
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			doIgnoreNextFlag = true;
 			break;
 		case 'n':
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			delimiter = '\n';
 			break;
 		case 'r':
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			delimiter = '\r';
 			break;
 		case 'v':
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			isVerboseModeOn = !isVerboseModeOn;
 			break;
 		default:
-			if (doIgnoreNextFlag) {
-				doIgnoreNextFlag = false;
-				handleFile(argument, fileNum, delimiter, isVerboseModeOn);
-				break;
-			}
 			handleFile(argument, fileNum, delimiter, isVerboseModeOn);
 			break;
 		}
 	}
 	else {
-		doIgnoreNextFlag = false;
 		handleFile(argument, fileNum, delimiter, isVerboseModeOn);
 	}
 }
